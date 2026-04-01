@@ -72,9 +72,15 @@ export default function Home() {
 
   const go = async (path) => {
     const name = username.trim() || '匿名'
-    const user = await createOrGetUser(name)
-    localStorage.setItem('userId', user.id)
-    localStorage.setItem('username', user.username)
+    try {
+      const user = await createOrGetUser(name)
+      if (user?.id) {
+        localStorage.setItem('userId', user.id)
+        localStorage.setItem('username', user.username)
+      }
+    } catch (e) {
+      console.error('ユーザー取得失敗:', e)
+    }
     navigate(path)
   }
 
