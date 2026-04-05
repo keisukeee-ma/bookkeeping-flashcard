@@ -28,11 +28,22 @@ function getFlagCount(userId, level) {
   } catch { return 0 }
 }
 
+/** ボタン内スピナー */
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
 export default function Home() {
   const [username, setUsername] = useState(localStorage.getItem('username') || '')
   const [activeTab, setActiveTab] = useState('level')
   const [selectedLevel, setSelectedLevel] = useState('3')
   const [selectedTheme, setSelectedTheme] = useState(null)
+  const [loadingTarget, setLoadingTarget] = useState(null)   // どのボタンが読込中か
   const navigate = useNavigate()
 
   const userId = Number(localStorage.getItem('userId')) || null
@@ -70,7 +81,9 @@ export default function Home() {
     localStorage.setItem('pwa_install_dismissed', '1')
   }
 
-  const go = async (path) => {
+  const go = async (path, targetKey) => {
+    if (loadingTarget) return                    // 二重タップ防止
+    setLoadingTarget(targetKey || path)
     const name = username.trim() || '匿名'
     try {
       const user = await createOrGetUser(name)
@@ -82,11 +95,13 @@ export default function Home() {
       console.error('ユーザー取得失敗:', e)
     }
     navigate(path)
+    // ※ navigate後に戻ってきた場合に備えてリセット
+    setLoadingTarget(null)
   }
 
-  const handleLevelStart  = (lv, mode) => go(`/${mode}/${lv.value}`)
-  const handleThemeStart  = () => selectedTheme && go(`/study/${selectedLevel}?theme=${encodeURIComponent(selectedTheme)}`)
-  const handleFlaggedStart = (level) => go(`/flagged/${level}`)
+  const handleLevelStart  = (lv, mode) => go(`/${mode}/${lv.value}`, `${mode}-${lv.value}`)
+  const handleThemeStart  = () => selectedTheme && go(`/study/${selectedLevel}?theme=${encodeURIComponent(selectedTheme)}`, 'theme-start')
+  const handleFlaggedStart = (level) => go(`/flagged/${level}`, `flagged-${level}`)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
@@ -165,9 +180,15 @@ export default function Home() {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleLevelStart(lv, 'study')}
-                        className={`flex-1 ${col.bg} text-white font-bold py-2 rounded-xl text-sm transition`}>学習開始</button>
+                        disabled={!!loadingTarget}
+                        className={`flex-1 ${col.bg} text-white font-bold py-2 rounded-xl text-sm transition flex items-center justify-center gap-2 ${loadingTarget ? 'opacity-70 cursor-wait' : ''}`}>
+                        {loadingTarget === `study-${lv.value}` ? <><Spinner /> 読込中…</> : '学習開始'}
+                      </button>
                       <button onClick={() => handleLevelStart(lv, 'review')}
-                        className="flex-1 bg-amber-400 hover:bg-amber-500 text-white font-bold py-2 rounded-xl text-sm transition">苦手復習</button>
+                        disabled={!!loadingTarget}
+                        className={`flex-1 bg-amber-400 hover:bg-amber-500 text-white font-bold py-2 rounded-xl text-sm transition flex items-center justify-center gap-2 ${loadingTarget ? 'opacity-70 cursor-wait' : ''}`}>
+                        {loadingTarget === `review-${lv.value}` ? <><Spinner /> 読込中…</> : '苦手復習'}
+                      </button>
                     </div>
                   </div>
                 )
@@ -201,9 +222,9 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-              <button onClick={handleThemeStart} disabled={!selectedTheme}
-                className={`w-full font-bold py-3 rounded-xl text-sm transition ${selectedTheme ? `${c.bg} text-white shadow` : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                {selectedTheme ? `「${selectedTheme}」で学習開始` : 'テーマを選んでください'}
+              <button onClick={handleThemeStart} disabled={!selectedTheme || !!loadingTarget}
+                className={`w-full font-bold py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 ${selectedTheme && !loadingTarget ? `${c.bg} text-white shadow` : 'bg-gray-100 text-gray-400 cursor-not-allowed'} ${loadingTarget === 'theme-start' ? 'cursor-wait' : ''}`}>
+                {loadingTarget === 'theme-start' ? <><Spinner /> 読込中…</> : selectedTheme ? `「${selectedTheme}」で学習開始` : 'テーマを選んでください'}
               </button>
             </div>
           )}
@@ -224,9 +245,9 @@ export default function Home() {
                         <div className="text-xs text-gray-400">{count}問フラグ中</div>
                       </div>
                     </div>
-                    <button onClick={() => handleFlaggedStart(lv.value)} disabled={count === 0}
-                      className={`font-bold py-2 px-4 rounded-xl text-sm transition ${count > 0 ? `${col.bg} text-white` : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>
-                      復習する
+                    <button onClick={() => handleFlaggedStart(lv.value)} disabled={count === 0 || !!loadingTarget}
+                      className={`font-bold py-2 px-4 rounded-xl text-sm transition flex items-center gap-2 ${count > 0 && !loadingTarget ? `${col.bg} text-white` : 'bg-gray-100 text-gray-300 cursor-not-allowed'} ${loadingTarget === `flagged-${lv.value}` ? 'cursor-wait' : ''}`}>
+                      {loadingTarget === `flagged-${lv.value}` ? <><Spinner /> 読込中…</> : '復習する'}
                     </button>
                   </div>
                 )
@@ -236,12 +257,14 @@ export default function Home() {
 
           {/* フッターボタン */}
           <div className="flex gap-2 pt-1">
-            <button onClick={() => go('/dashboard')}
-              className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 border border-indigo-100">
-              📊 進捗ダッシュボード
+            <button onClick={() => go('/dashboard', 'dashboard')}
+              disabled={!!loadingTarget}
+              className={`flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 border border-indigo-100 ${loadingTarget ? 'opacity-70 cursor-wait' : ''}`}>
+              {loadingTarget === 'dashboard' ? <><Spinner /> 読込中…</> : '📊 進捗ダッシュボード'}
             </button>
-            <button onClick={() => navigate('/ranking')}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5">
+            <button onClick={() => { if (!loadingTarget) navigate('/ranking') }}
+              disabled={!!loadingTarget}
+              className={`flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 ${loadingTarget ? 'opacity-70 cursor-wait' : ''}`}>
               🏆 ランキング
             </button>
           </div>
