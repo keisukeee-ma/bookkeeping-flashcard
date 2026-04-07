@@ -51,6 +51,12 @@ export default function Home() {
   const lv = LEVELS.find(l => l.value === selectedLevel)
   const c = COLOR[lv.color]
 
+  // ページ表示時にバックエンドを起こす（Renderコールドスタート対策）
+  useEffect(() => {
+    const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    fetch(`${API}/`).catch(() => {})
+  }, [])
+
   // PWA インストールプロンプト
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
